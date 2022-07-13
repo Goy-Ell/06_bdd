@@ -5,7 +5,8 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 import numpy as np
 from module import *
-from mod_dao import *
+from mod_dao import * 
+import joblib as jl
 import os
 
 # connection, cursor = connect_db()
@@ -58,8 +59,9 @@ new_db()
 #%%
 # TODO
     # if no data in bdd :
-data_dir = 'base-joconde-extrait.csv'
-df = mod.get_data(data_dir)
+# data_dir = 'base-joconde-extrait.csv'
+# df = mod.get_data(data_dir)
+df = jl.load('dff.jl')
 
 
     # Nettoyage

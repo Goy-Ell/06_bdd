@@ -15,10 +15,13 @@ import numpy as np
 #     return df
 
 
+
 def new_db():
     connection = mysql.connector.connect(
         user='root',
-        password='toto',
+        password=
+            # 'toto',
+            'Pa$$w0rd',
         host='127.0.0.1')
     cursor = connection.cursor()
 
@@ -55,6 +58,7 @@ def connect_db():
             host='127.0.0.1',
             database='joconde')
         cursor = connection.cursor()
+        return connection, cursor 
 
     except mysql.connector.Error as err:
         if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
@@ -62,8 +66,9 @@ def connect_db():
         elif err.errno == errorcode.ER_BAD_DB_ERROR:
             print("Database does not exist")
             connection, cursor = new_db()
+            return connection, cursor 
 
-    return connection, cursor 
+    
 
 
 def check(title):
