@@ -5,6 +5,10 @@ from sqlalchemy import create_engine
 from mysql.connector import errorcode
 import numpy as np
 
+from dotenv import dotenv_values
+
+#recupere les données du dotenv
+config = dotenv_values(".env") 
 
 # def df_db():
 #     db_connection_str = 'mysql+pymysql://root:toto@127.0.0.1/joconde'
@@ -17,31 +21,26 @@ import numpy as np
 
 
 def new_db():
+    # connect server
     connection = mysql.connector.connect(
-        user='root',
-        password=
-            # 'toto',
-            'Pa$$w0rd',
-        host='127.0.0.1')
+        user=config['USER'],
+        password=config['PASSWORD'],
+        host=config['HOST']
+        )
     cursor = connection.cursor()
-
-# fd = open('ZooDatabase.sql', 'r')
-# sqlFile = fd.read()
-# fd.close()
-
-
+    
+    # create db
     with open('joconde_new_db.sql', 'r') as fd:
         sql_file = fd.read()
-        # print(sql_file)
+
         for line in sql_file.split(";"):
-            # print(line)
-            # print('---------')
             try:
                 cursor.execute(line)
             except IOError as msg:
                 print("Command skipped: ", msg)
 
     return connection, cursor
+
 
 
 def connect_db():
@@ -53,11 +52,11 @@ def connect_db():
 
     try:
         connection = mysql.connector.connect(
-            user='root',
-            password='toto',
-            host='127.0.0.1',
-            database='joconde')
-        cursor = connection.cursor()
+            user = config['USER'],
+            password = config['PASSWORD'],
+            host = config['HOST'],
+            database = config['DB_NAME'])
+        cursor = connection.cursor(buffered=True)
         return connection, cursor 
 
     except mysql.connector.Error as err:
@@ -108,6 +107,13 @@ def insert_oeuvre(lst_articles):
 
 
 
+
+cursor.execute(mySql_select_art_id, [aut])  # recupere l'id artiste par le nom
+id_aut = cursor.fetchone()[0]
+    
+    
+    
+
 def insert_auteur(lst_aut):
     """insertion auteur in db
 
@@ -115,9 +121,8 @@ def insert_auteur(lst_aut):
         lst_aut (list): list of auteurs [name]
     """
     connection, cursor = connect_db()
+    mySql_insert_auteur = 'INSERT IGNORE INTO artiste (nom) VALUES(%s)'
     try:
-        mySql_insert_auteur = 'INSERT IGNORE INTO artiste (nom) VALUES(%s)'
-
         for line in lst_aut:
             try:
                 cursor.execute(mySql_insert_auteur,(line,))
@@ -173,7 +178,7 @@ def insert_oeuvre(df):
         except Exception as e:
             print( e,
                 "error insert for id: ",
-                    line[0]
+                    line[0], line[1]
                 )
             continue
 
@@ -183,13 +188,13 @@ def insert_oeuvre(df):
 
 
 def insert_art_oeuv(df):
-    """insertion art_oeuv in db
+    """insertion art_oeuv (jonction table between auteur and oeuvre) in db
 
     Args:
         df (pd.Dataframe): df ['ID-notice','Auteur']
     """
     connection, cursor = connect_db()
-    mySql_insert_art_oeuv = 'INSERT IGNORE INTO art_oeuv (ID-notice, Auteur) VALUES(%s,%s)'
+    mySql_insert_art_oeuv = 'INSERT IGNORE INTO art_oeuv (oeuvre, artiste) VALUES(%s,%s)'
     mySql_select_art_id = "SELECT id FROM artiste WHERE nom = %s "
 
 
@@ -197,7 +202,6 @@ def insert_art_oeuv(df):
         line=df.iloc[i,:].values.tolist()
         id_oeuvre=line[0]
         auteurs = line[1]
-
 
 
         for aut in auteurs:

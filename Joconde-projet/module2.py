@@ -1,15 +1,13 @@
 import seaborn as sns
 import pandas as pd
-# import module as mod
 import seaborn as sns
 from matplotlib import pyplot as plt
 import numpy as np
 from logging import exception
 from pandas import isna
+from mod_dao2 import *
 
 
-def test():
-    print('test ok')
 
 
 def analyse_df(dataframe):
@@ -95,7 +93,7 @@ def reduc_colonne(df):
 
 
 def convert(s):
-    """ decode en encode with good encoding type
+    """ decode and encode with good encoding type
 
     Args:
         s (string): wrong encoding string
@@ -170,15 +168,13 @@ def reduc_ligne(df):
 
     return df
 
-def normalize(auts):
-    clean_auts=[]
-    for aut in auts : 
-        # if '(' in aut:
-        #     aut=aut.split('(')[0]
-        if aut:
-            clean_auts.append(aut.lower())
 
-    return  clean_auts
+
+
+# --------------------------------------------------------------
+
+
+
 
 def net_aut(aut):
     if isna(aut) :
@@ -193,35 +189,31 @@ def net_aut(aut):
         else:
             aut=[aut]
 
-        aut = normalize(aut) 
+            #tout passer en minuscule
+        aut = list(map(lambda x: x.lower(), aut))
         
     return aut
 
 
 
-def clean_auteur(df):
-    df.Auteur=df.Auteur.apply(net_aut)
-
-    lst=df.Auteur[df.Auteur.notna()].values.tolist()
-
-    aut_lst = []
-    for auts in lst:
-        aut_lst.extend(auts)
-    aut_lst=list(set(aut_lst))
-
-    return df, aut_lst
 
 
+def extract_data(cursor, line):
 
-def clean_musee_spe(df):
-    df.drop(df[df['Identifiant Museofile']== '0000'].index,inplace=True)
-    df['Identifiant Museofile'].replace('5027','M5027',inplace=True)
-    df['Identifiant Museofile']=df['Identifiant Museofile'].apply(lambda x: x.upper())
-    return(df)
+    connection, cursor = connect_db()   
 
-def clean_oeuvre(df):
-    #TODO nettoyage
-    return df[['ID-notice','Titre','Dénomination','Sujet','Domaine','Identifiant Museofile']]
+    insert_musee(cursor, line['Identifiant Museofile'].upper(),line['NOMOFF'],line['REGION'],line['DPT'],line['Ville_'],line['POP_COORDONNEES'])
+
+    insert_oeuvre(cursor, line['ID-notice'],line['Titre'],line['Dénomination'],line['Sujet'],line['Domaine'],line['Identifiant Museofile'])
+
+    lst_aut = net_aut(cursor, line.Auteur)
+    for aut in lst_aut:
+        aut_id = insert_auteur(cursor, aut)
+        insert_art_oeuv(cursor, aut_id, line['Identifiant Museofile'])
+
+
+    connection.commit()
+    connection.close()
 
 
 
@@ -229,32 +221,6 @@ def clean_oeuvre(df):
 
 
 
-
-# Recup musée
-#%%
-def clean_musee(df):
-    """_summary_
-
-    Args:
-        df (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    df2=df.copy()
-    df2 = df2[['Identifiant Museofile','NOMOFF','REGION','DPT','Ville_','POP_COORDONNEES']]
-
-    # ordonne ceux qui ont le plus de données en premier et supprime les doublons
-    df2['nb_nan']=df2.isna().sum(axis=1)
-    df2=df2.sort_values('nb_nan')
-    df2=df2.drop_duplicates(subset='Identifiant Museofile',keep='first')
-    df2 = df2.drop(columns=['nb_nan'])
-    df2 = df2.sort_values('Identifiant Museofile')
-
-    return df2
-
-
-#%%
 
 
 
