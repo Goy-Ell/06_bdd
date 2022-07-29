@@ -8,8 +8,6 @@ from pandas import isna
 from mod_dao2 import *
 
 
-
-
 def analyse_df(dataframe):
     """analyse de la df
 
@@ -26,7 +24,6 @@ def analyse_df(dataframe):
                 cbar=False, cmap='viridis')
 
 
-
 # Recup data
 
 def get_data(dir):
@@ -35,9 +32,10 @@ def get_data(dir):
     Args:
         dir (string): path du .csv
     """
-    data = pd.read_csv(dir, delimiter=';',low_memory=False ,encoding='utf-8', nrows=300000)
+    data = pd.read_csv(dir, delimiter=';', low_memory=False,
+                       encoding='utf-8', nrows=300000)
     data.dataframeName = dir
-    
+
     return data
 
 
@@ -52,44 +50,43 @@ def reduc_colonne(df):
     Returns:
         pd.DataFrame: df with onnly needed columns
     """
-    #choix des colonnes utiles
+    # choix des colonnes utiles
     col = ['ID-notice',
-        'Auteur',
-        'Titre', 
-        'Dénomination',
-        'Domaine', 
-        'Sujet',
-        # 'POP_CONTIENT_GEOLOCALISATION', 
-        # 'Statut juridique',
-        # 'PRODUCTEUR',
-        # "Numéro de l'objet",
-        'BASE',
-        'CONTIENT_IMAGE', 
-        # 'Lieu de conservation', 
-        'Identifiant Museofile', 
-        # 'Source et date de la notice', 
-        'NOMOFF',
-        'LOCA2', 
-        'REGION', 
-        'DPT', 
-        'Ville_',
-        'POP_COORDONNEES',
-        # 'IMAGE', 
-        # 'Label Musée de France', 
-        # 'Matériaux-techniques',
-        # 'Dimensions', 
-        # "Date d'import", 
-        # 'Période de création', 
-        # "Date d'acquisition", 
-        # 'APTN', 
-        # 'PHOT', 
-        # "Précisions sur l'auteur", 
-        # 'Ecole', 
-        # 'Date de mise à jour', 
-        # 'MSGCOM'
-    ]
+           'Auteur',
+           'Titre',
+           'Dénomination',
+           'Domaine',
+           'Sujet',
+           # 'POP_CONTIENT_GEOLOCALISATION',
+           # 'Statut juridique',
+           # 'PRODUCTEUR',
+           # "Numéro de l'objet",
+           'BASE',
+           'CONTIENT_IMAGE',
+           # 'Lieu de conservation',
+           'Identifiant Museofile',
+           # 'Source et date de la notice',
+           'NOMOFF',
+           'LOCA2',
+           'REGION',
+           'DPT',
+           'Ville_',
+           'POP_COORDONNEES',
+           # 'IMAGE',
+           # 'Label Musée de France',
+           # 'Matériaux-techniques',
+           # 'Dimensions',
+           # "Date d'import",
+           # 'Période de création',
+           # "Date d'acquisition",
+           # 'APTN',
+           # 'PHOT',
+           # "Précisions sur l'auteur",
+           # 'Ecole',
+           # 'Date de mise à jour',
+           # 'MSGCOM'
+           ]
     return df[col]
-
 
 
 def convert(s):
@@ -102,47 +99,69 @@ def convert(s):
     Returns:
         string: clean s
     """
-    code="cp1252"
+    code = "cp1252"
 
     if s is not None:
         try:
-            if isinstance(s,str):
+            if isinstance(s, str):
                 s = s.encode(code).decode()
-            else : 
+            else:
                 s = str(s).encode(code).decode()
-                
+
         except UnicodeError:
             pass
     return s
 
 
-
 def clean_encodage(df):
-    """_summary_
+    """ split df, and clean encode the wrong part
 
     Args:
-        df (pd.DataFrame): df with wrong encoding
+        df (pd.DataFrame): df with all line
 
     Returns:
         pd.DataFrame: clean encoded df
     """
+    # j'ai pas réussi a utiliser "apply(clean)"  directement aux lignes concernées. j'ai donc suivi la methode pierre avec separation de la df
+
     # recup de la valeur de la colonne 'base' mal encodé (c'est le string le plus long)
+    # la colonne 'base' a une valeur unique. on s'en sert pour séparer la partie mal encodé
+    bases = list(df.BASE.unique())
+    # liste de colonnes que je veux nettoyer
+    columns = ['Auteur', 'Titre', 'LOCA2', 'Dénomination', 'Domaine',
+               'Sujet', 'BASE', 'NOMOFF', 'LOCA2', 'REGION', 'DPT', 'Ville_']
 
-    a=list(df.BASE.unique())
+    if bases:
+        # s'il n'y a qu'une valeur unique est qu'elle est mal encodé on clean toute la df
+        if len(bases) == 1 and 'Ã©' in bases[0]:
+            df = clean(df_cp1252, columns)
 
-    if len(a)>1:
-        a.sort(key = len, reverse=True)
+        # s'il y a plus d'une valeur unique  on separe le df mal encodé du propre, puis merge apres clean
+        else:
+            for base in bases:
+                if 'Ã©' in base:
+                    bad_base = base
 
-        # creation de 2 db , dont 1 mal encodé
-        df_cp1252=df[df.BASE == a[0]]
-        df_ok=df[df.BASE == a[1]]
+            if bad_base:
+                # creation de 2 db , dont 1 mal encodé
+                df_cp1252 = df[df.BASE == bad_base]
+                df_ok = df[df.BASE != bad_base]
 
-        columns = ['Auteur','Titre','LOCA2', 'Dénomination', 'Domaine', 'Sujet','BASE','NOMOFF', 'LOCA2','REGION', 'DPT', 'Ville_' ]
-        
-        for column in columns:
-            df_cp1252.loc[:, column] = df[column].apply(convert)
+            df_cp1252 = clean(df_cp1252, columns)
 
-        df = pd.concat([df_cp1252, df_ok])
+            # merge des 2 df
+            df = pd.concat([df_cp1252, df_ok])
+
+    return df
+
+
+
+
+
+def clean(df, columns):
+    # nettoyage colonne par colonne
+    for column in columns:
+        df.loc[:, column] = df[column].apply(convert)
 
     return df
 
@@ -157,70 +176,54 @@ def reduc_ligne(df):
         _type_: _description_
     """
     # Ligne en double
-    df = df.drop_duplicates(subset=['ID-notice'],keep='first')
-    # Oeuvre n'ayant pas de musé 
+    df = df.drop_duplicates(subset=['ID-notice'], keep='first')
+    # Oeuvre n'ayant pas de musé
     df = df.dropna(subset=['Identifiant Museofile'])
-    #suppression des nan Identifiant Museofile ne contiene aune info  de locallisation
+    # suppression des nan Identifiant Museofile ne contiene aune info  de locallisation
     df = df.loc[df['Identifiant Museofile'].dropna().index]
     # Mettre des NAN
-    df.replace('nan',np.nan, inplace=True)
-    df.replace('',np.nan, inplace=True)
+    df.replace('nan', np.nan, inplace=True)
+    df.replace('', np.nan, inplace=True)
 
     return df
-
-
 
 
 # --------------------------------------------------------------
 
 
-
-
 def net_aut(aut):
-    if isna(aut) :
+    if isna(aut):
         aut = ['non renseigné']
-    
+
     else:
         if not isinstance(aut, str):
-            aut=str(aut)
-            
+            aut = str(aut)
+
         if ';' in aut:
             aut = aut.split(';')
         else:
-            aut=[aut]
+            aut = [aut]
 
-            #tout passer en minuscule
+            # tout passer en minuscule
         aut = list(map(lambda x: x.lower(), aut))
-        
+
     return aut
-
-
-
 
 
 def extract_data(cursor, line):
 
-    connection, cursor = connect_db()   
+    connection, cursor = connect_db()
 
-    insert_musee(cursor, line['Identifiant Museofile'].upper(),line['NOMOFF'],line['REGION'],line['DPT'],line['Ville_'],line['POP_COORDONNEES'])
+    insert_musee(cursor, line['Identifiant Museofile'].upper(
+    ), line['NOMOFF'], line['REGION'], line['DPT'], line['Ville_'], line['POP_COORDONNEES'])
 
-    insert_oeuvre(cursor, line['ID-notice'],line['Titre'],line['Dénomination'],line['Sujet'],line['Domaine'],line['Identifiant Museofile'])
+    insert_oeuvre(cursor, line['ID-notice'], line['Titre'], line['Dénomination'],
+                  line['Sujet'], line['Domaine'], line['Identifiant Museofile'])
 
     lst_aut = net_aut(cursor, line.Auteur)
     for aut in lst_aut:
         aut_id = insert_auteur(cursor, aut)
         insert_art_oeuv(cursor, aut_id, line['Identifiant Museofile'])
 
-
     connection.commit()
     connection.close()
-
-
-
-
-
-
-
-
-
-
