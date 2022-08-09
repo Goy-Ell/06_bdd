@@ -5,15 +5,14 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 import numpy as np
 from module2 import *
-from mod_dao2 import * 
+# from mod_dao2 import * 
 import joblib as jl
 import os
+from tqdm import tqdm
 
 
 #%%
-connection,_ = new_db()
-
-
+check_db()
 
 
 #%%
@@ -32,12 +31,8 @@ df = reduc_ligne(df)
 df = df.reset_index(drop=True)
 
 
-
-for i in range (df.shape[0]):
-    line = df.iloc[i,:]
-    
-    extract_data(line)
-
-    
+#%%    
+extract_data(df)
 
 
+# %%

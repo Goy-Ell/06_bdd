@@ -124,7 +124,7 @@ def clean_encodage(df):
     """
     # j'ai pas réussi a utiliser "apply(clean)"  directement aux lignes concernées. j'ai donc suivi la methode pierre avec separation de la df
 
-    # recup de la valeur de la colonne 'base' mal encodé (c'est le string le plus long)
+    # recup de la valeur de la colonne 'base' mal encodé 
     # la colonne 'base' a une valeur unique. on s'en sert pour séparer la partie mal encodé
     bases = list(df.BASE.unique())
     # liste de colonnes que je veux nettoyer
@@ -132,7 +132,7 @@ def clean_encodage(df):
                'Sujet', 'BASE', 'NOMOFF', 'LOCA2', 'REGION', 'DPT', 'Ville_']
 
     if bases:
-        # s'il n'y a qu'une valeur unique est qu'elle est mal encodé on clean toute la df
+        # s'il n'y a qu'une valeur unique et qu'elle est mal encodé on clean toute la df
         if len(bases) == 1 and 'Ã©' in bases[0]:
             df = clean(df_cp1252, columns)
 
@@ -182,8 +182,9 @@ def reduc_ligne(df):
     # suppression des nan Identifiant Museofile ne contiene aune info  de locallisation
     df = df.loc[df['Identifiant Museofile'].dropna().index]
     # Mettre des NAN
-    df.replace('nan', np.nan, inplace=True)
-    df.replace('', np.nan, inplace=True)
+    df.fillna('nan', inplace=True)
+    # df.replace('nan', np.nan, inplace=True)
+    df.replace('', 'nan', inplace=True)
 
     return df
 
@@ -210,20 +211,67 @@ def net_aut(aut):
     return aut
 
 
-def extract_data(cursor, line):
 
-    connection, cursor = connect_db()
+def extract_data(df):
+    musee_keys = ['Identifiant Museofile','NOMOFF','REGION','DPT','Ville_','POP_COORDONNEES']
+    oeuvre_keys=['ID-notice','Titre','Dénomination','Sujet','Domaine','Identifiant Museofile']
+    musees=[]
+    oeuvres=[]
+    art_oeuvs=[]
+    auts=[]
 
-    insert_musee(cursor, line['Identifiant Museofile'].upper(
-    ), line['NOMOFF'], line['REGION'], line['DPT'], line['Ville_'], line['POP_COORDONNEES'])
+    for i in tqdm(range (df.shape[0])):
+        line = df.iloc[i,:]
+        line.fillna('nan', inplace=True)
+        line['Identifiant Museofile'] = line['Identifiant Museofile'].upper()
+        musees.append(clean_list(musee_keys, line))
+        oeuvres.append(clean_list(oeuvre_keys, line))
 
-    insert_oeuvre(cursor, line['ID-notice'], line['Titre'], line['Dénomination'],
-                  line['Sujet'], line['Domaine'], line['Identifiant Museofile'])
+    
+        lst_aut = net_aut( line.Auteur)
+        for aut in lst_aut:
+            auts.append (aut)
+            art_oeuvs.append( (aut, line['ID-notice']))
 
-    lst_aut = net_aut(cursor, line.Auteur)
-    for aut in lst_aut:
-        aut_id = insert_auteur(cursor, aut)
-        insert_art_oeuv(cursor, aut_id, line['Identifiant Museofile'])
+    insert_many_auts(auts)
+    insert_many_musees(musees)
+    insert_many_oeuvres(oeuvres)
+    insert_many_art_oeuvs(art_oeuvs)
 
-    connection.commit()
-    connection.close()
+
+
+
+def extract_data2(df):
+    musee_keys = ['Identifiant Museofile','NOMOFF','REGION','DPT','Ville_','POP_COORDONNEES']
+    oeuvre_keys=['ID-notice','Titre','Dénomination','Sujet','Domaine','Identifiant Museofile']
+    
+    for i in tqdm(range (df.shape[0])):
+        line = df.iloc[i,:]
+        line.fillna('nan', inplace=True)
+        line['Identifiant Museofile'] = line['Identifiant Museofile'].upper()
+
+        insert_musee(clean_list(musee_keys, line))
+        insert_oeuvre(clean_list(oeuvre_keys, line))
+
+        lst_aut = net_aut( line.Auteur)
+        for aut in lst_aut:
+            aut_id = insert_auteur( aut)
+            insert_art_oeuv( aut_id, line['Identifiant Museofile'])
+
+
+
+
+
+
+def clean_list(keys , line):
+    lst=[]
+    for key in keys:
+        if not key in line.keys() or not line[key] or line[key] in ['', 'nan']: 
+            lst.append(None)
+        else:
+            lst.append(line[key])
+    return lst
+
+
+
+
