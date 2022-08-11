@@ -4,241 +4,382 @@ import mysql.connector
 from sqlalchemy import create_engine
 from mysql.connector import errorcode
 import numpy as np
+from mod_jo import *
+from tqdm import tqdm
 
 from dotenv import dotenv_values
 
-#recupere les données du dotenv
-config = dotenv_values(".env") 
+# recupere les données du dotenv
+DENV = dotenv_values(".env") 
+USER = DENV['USER']
+PASSWORD = DENV['PASSWORD']
+HOST = DENV['HOST']
+DB_NAME = DENV['DB_NAME']
 
-# def df_db():
-#     db_connection_str = 'mysql+pymysql://root:toto@127.0.0.1/joconde'
-#     db_connection = create_engine(db_connection_str)
-#     sql_req = (
-#         "SELECT  title, text_ , length_, nom, magazine  FROM articles a JOIN magazines m on a.magazine = m.id")
-#     df = pd.read_sql(sql_req, con=db_connection)
-#     return df
+
+class Database:
+    def __init__(self, user,  password, host, database=None):
+        try:
+            self._cnx = mysql.connector.connect(
+                user = user,
+                password = password,
+                host = host,
+                database = database)
+            self._cursor = self._cnx.cursor(buffered=True)
+        except mysql.connector.Error as err:
+            if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
+                print("Something is wrong with your user name or password")
+            elif err.errno == errorcode.ER_BAD_DB_ERROR:
+                print("Database does not exist")
+                # connection, cursor = new_db()
+                
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    
+    def connection(self):
+        return self._cnx
+
+    @property
+    def cursor(self):
+        return self._cursor
+
+    def commit(self):
+        self.connection.commit()
+
+    def close(self, commit=True):
+        if commit:
+            self.commit()
+        self.connection.close()
+
+    def execute(self, sql, params=None):
+        self.cursor.execute(sql, params or ())
+
+    def fetchall(self):
+        return self.cursor.fetchall()
+
+    def fetchone(self):
+        return self.cursor.fetchone()
+
+    def query(self, sql, params=None):
+        self.cursor.execute(sql, params or ())
+        return self.fetchall()
+    
+    def query1(self, sql, params=None):
+        self.cursor.execute(sql, params or ())
+        return self.fetchone()
+    
+    
+    
+# CONNECTION -----------------------------------------
+
+def check_db_exist():
+    try:
+        Database(USER,PASSWORD,HOST,DB_NAME)
+    except mysql.connector.Error as err:
+        if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
+            print("Something is wrong with your user name or password")
+        elif err.errno == errorcode.ER_BAD_DB_ERROR:
+            print("Database does not exist")
+            return False
+    return True
 
 
 
 def new_db():
-    # connect server
-    connection = mysql.connector.connect(
-        user=config['USER'],
-        password=config['PASSWORD'],
-        host=config['HOST']
-        )
-    cursor = connection.cursor()
-    
+    dbc= Database(USER,PASSWORD,HOST) 
     # create db
     with open('joconde_new_db.sql', 'r') as fd:
         sql_file = fd.read()
 
         for line in sql_file.split(";"):
             try:
-                cursor.execute(line)
+                dbc.execute(line)
             except IOError as msg:
-                print("Command skipped: ", msg)
-
-    return connection, cursor
-
-
-
-def connect_db():
-    """connection to DB
-
-    Returns:
-        _type_: connection , cursor
-    """
-
-    try:
-        connection = mysql.connector.connect(
-            user = config['USER'],
-            password = config['PASSWORD'],
-            host = config['HOST'],
-            database = config['DB_NAME'])
-        cursor = connection.cursor(buffered=True)
-        return connection, cursor 
-
-    except mysql.connector.Error as err:
-        if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-            print("Something is wrong with your user name or password")
-        elif err.errno == errorcode.ER_BAD_DB_ERROR:
-            print("Database does not exist")
-            connection, cursor = new_db()
-            return connection, cursor 
-
+                print("Command skipped: ", msg)    
+    dbc.close()
     
 
 
-def check(title):
-    connection, cursor = connect_db()
-    try:
-        cursor.execute("SELECT id FROM articles WHERE title = %s ", [title])
-        return cursor.fetchone()
 
+
+     
+    
+# AUTEUR ---------------------------------------
+def get_all_auteur():
+    dbc= Database(USER,PASSWORD,HOST,DB_NAME)
+    mySql_get_all_auteur = 'SELECT * FROM artiste'
+    try:
+        auteurs = dbc.query(mySql_get_all_auteur)
+    except Exception as e:
+        print(f"error at get_all_auteur // ",  e)
     finally:
-        connection.close()
+        dbc.close()
+        return auteurs if 'auteurs' in locals() else None
 
 
-def insert_oeuvre(lst_articles):
-    """insertion oeuvre in db
-
-    Args:
-        lst_articles (list): list of articles [link, title,article,length,magazine]
-    """
-    connection, cursor = connect_db()
+def get_auteur_id_by_name2(aut) :
+    dbc= Database(USER,PASSWORD,HOST,DB_NAME)
+    mySql_get_auteur = 'SELECT id FROM artiste WHERE nom = %s'
     try:
-        mySql_insert_article = 'INSERT IGNORE INTO articles (link, title, length_,text_,magazine) VALUES(%s,%s,%s,%s,%s)'
-
-        for line in lst_articles:
-            try:
-                cursor.execute("SELECT id FROM magazines WHERE nom = %s ", [
-                               line[4]])  # recupere l'id magazine par le nom
-                id = cursor.fetchone()[0]
-                cursor.execute(mySql_insert_article,
-                               (line[0], line[1], line[3], line[2], id))
-            except exception as error:
-                print(error, "error at ", line[4], line[1])
-                continue
-
+        res = dbc.execute(mySql_get_auteur,[aut])
+        return res.fetchone()
+    except Exception as e:
+        print(f"error at get_auteur_id_by_name({aut}) // ",  e)
     finally:
-        connection.commit()
-        connection.close()
+        dbc.close()
+        return id if 'id' in locals() else None
 
 
+def get_auteur_id_by_name(aut,dbc) :
+    mySql_get_auteur = "SELECT id FROM artiste WHERE nom = %s"
+    id = dbc.query1(mySql_get_auteur,[aut])
+    if not id :
+        print(aut + " have no id")
+    if len(id)>1:
+        print( aut + " have multi id : " + id)
+    else:
+        return id[0]
 
 
-cursor.execute(mySql_select_art_id, [aut])  # recupere l'id artiste par le nom
-id_aut = cursor.fetchone()[0]
-    
-    
-    
-
-def insert_auteur(lst_aut):
-    """insertion auteur in db
-
-    Args:
-        lst_aut (list): list of auteurs [name]
-    """
-    connection, cursor = connect_db()
+def insert_auteur(aut):
+    dbc= Database(USER,PASSWORD,HOST,DB_NAME)
     mySql_insert_auteur = 'INSERT IGNORE INTO artiste (nom) VALUES(%s)'
     try:
-        for line in lst_aut:
-            try:
-                cursor.execute(mySql_insert_auteur,(line,))
-            except Exception as error:
-                print(error)
-                continue
-
+        dbc.execute(mySql_insert_auteur,[aut])
+        id_aut = dbc.query('SELECT LAST_INSERT_ID()')
+    except Exception as e:
+        print(f"error at insert_auteur({aut}) // ",  e)
     finally:
-        connection.commit()
-        connection.close()
+        dbc.close()    
+        return id_aut if 'insert_auteur' in locals() else None
+
+
+def insert_many_auts(auts):
+    dbc= Database(USER,PASSWORD,HOST,DB_NAME)
+    mySql_insert_auteur = 'INSERT IGNORE INTO artiste (nom) VALUES(%s)'
+    for aut in tqdm(auts):
+        try:
+            dbc.execute(mySql_insert_auteur,[aut])
+        except Exception as e:
+            print(f"error at insert_auteur({aut}) // ",  e)
+            #TODO add to log file
+            continue
+    dbc.close()    
 
 
 
-def insert_musee(df):
-    """insertion musee in db
+# MUSEE --------------------------------------------
 
-    Args:
-        df (pd.Dataframe): list of musee [id, nom, region, dept, ville, geoloc]
-    """
-    connection, cursor = connect_db()
-    mySql_insert_musee = 'INSERT IGNORE INTO musee (id, nom, region, dept, ville, geoloc ) VALUES(%s,%s,%s,%s,%s,%s)'
-    df=df.fillna('')
-    for i in range(len(df)):
-        line=df.iloc[i,:].values.tolist()
+def get_all_musee():
+    dbc= Database(USER,PASSWORD,HOST,DB_NAME)
+    mysql_get_all_musee = 'SELECT * FROM musee'
+    try:
+        musees = dbc.query(mysql_get_all_musee)
+    except Exception as e:
+        print(f"error at get_all_musee // ",  e)
+    finally:
+        dbc.close()  
+        return musees if 'musees' in locals() else None
+
+
+def get_musee(id_musee):
+    dbc= Database(USER,PASSWORD,HOST,DB_NAME)
+    mysql_get_musee = 'SELECT * FROM musee WHERE id = %s'
+    try:
+        musee = dbc.query(mysql_get_musee, [id_musee])
+    except Exception as e:
+        print(f"error at get_musee({id_musee}) // ",  e)
+    finally:
+        dbc.close()  
+        return musee if 'musee' in locals() else None
     
+
+
+def insert_musee(musee):
+    dbc= Database(USER,PASSWORD,HOST,DB_NAME)
+    mySql_insert_musee = 'INSERT IGNORE INTO musee (id, nom, region, dept, ville, geoloc ) VALUES(%s,%s,%s,%s,%s,%s)'
+    try:
+        dbc.execute(mySql_insert_musee,musee)
+    except Exception as e:
+        print(f"error at insert_musee({musee[0], musee[1]}) // ",  e)
+    finally:
+        dbc.close()    
+
+def insert_many_musees(musees):
+    dbc= Database(USER,PASSWORD,HOST,DB_NAME)
+    mySql_insert_musee = 'INSERT IGNORE INTO musee (id, nom, region, dept, ville, geoloc ) VALUES(%s,%s,%s,%s,%s,%s)'
+    for musee in tqdm(musees):
         try:
-            cursor.execute(mySql_insert_musee,(line[0],line[1],line[2],line[3],line[4],line[5],))
+            dbc.execute(mySql_insert_musee,musee)
         except Exception as e:
-            print( e,
-                "error insert for id: ",
-                    line[0]
-                )
+            print(f"error at insert_musee({musee[0], musee[1]}) // ",  e)
+            #TODO add to log file
             continue
-
-        # finally:
-    connection.commit()
-    connection.close()
+    dbc.close()    
 
 
-def insert_oeuvre(df):
-    """insertion oeuvre in db
 
-    Args:
-        df (pd.Dataframe): df_oeuvre [id, nom, denomination, sujet, domaine, musee]
-    """
-    connection, cursor = connect_db()
+# OEUVRE -----------------------------------------------
+
+def get_all_oeuvre():
+    dbc= Database(USER,PASSWORD,HOST,DB_NAME)
+    mysql_get_all_oeuvre = 'SELECT * FROM oeuvre'
+    try : 
+        oeuvres = dbc.query(mysql_get_all_oeuvre)
+    except Exception as e:
+        print(f"error at get_all_oeuvre() // ",  e)
+    finally:
+        dbc.close()  
+        return oeuvres if 'oeuvres' in locals() else None
+
+
+def get_oeuvre(id_oeuvre):
+    dbc= Database(USER,PASSWORD,HOST,DB_NAME)
+    mysql_get_oeuvre = 'SELECT id FROM oeuvre WHERE id = %s'
+    try : 
+        oeuvre = dbc.query(mysql_get_oeuvre, [id_oeuvre])
+    except Exception as e:
+        print(f"error at get_oeuvre({id_oeuvre}) // ",  e)
+    finally:
+        dbc.close()  
+        return oeuvre if 'oeuvre' in locals() else None
+
+
+def insert_oeuvre(oeuvre):
+    dbc= Database(USER,PASSWORD,HOST,DB_NAME)
     mySql_insert_oeuvre = 'INSERT IGNORE INTO oeuvre (id, nom, denomination, sujet, domaine, musee ) VALUES(%s,%s,%s,%s,%s,%s)'
-    df=df.fillna('')
-    for i in range(len(df)):
-        line=df.iloc[i,:].values.tolist()
+    try:
+        dbc.execute(mySql_insert_oeuvre,oeuvre)
+    except Exception as e:
+        print(f"error at insert_oeuvre({oeuvre[0], oeuvre[1]}) // ",  e)
+    finally:
+        dbc.close()    
+ 
+def insert_many_oeuvres(oeuvres) :
+    dbc= Database(USER,PASSWORD,HOST,DB_NAME)
+    mySql_insert_oeuvre = 'INSERT IGNORE INTO oeuvre (id, nom, denomination, sujet, domaine, musee ) VALUES(%s,%s,%s,%s,%s,%s)'
+    for oeuvre in tqdm(oeuvres):
         try:
-            cursor.execute(mySql_insert_oeuvre,(line[0],line[1],line[2],line[3],line[4],line[5]))
+            dbc.execute(mySql_insert_oeuvre,oeuvre)
         except Exception as e:
-            print( e,
-                "error insert for id: ",
-                    line[0], line[1]
-                )
+            print(f"error at insert_oeuvre({oeuvre[0], oeuvre[1]}) // ",  e)
+            #TODO add to log file
             continue
-
-        # finally:
-    connection.commit()
-    connection.close()
+    dbc.close()      
+ 
 
 
-def insert_art_oeuv(df):
-    """insertion art_oeuv (jonction table between auteur and oeuvre) in db
+ # ART_OEUV ---------------------------------------------
+        
+# def get_art_oeuv(id_aut, id_oeuvre):
+#     mysql_check_oeuvre = 'SELECT * FROM art_oeuv WHERE oeuvre = %s and artiste = %s'
+#     cursor.excute(mysql_check_oeuvre, [id_aut, id_oeuvre])
+    
+#     return cursor.fetchone()
 
-    Args:
-        df (pd.Dataframe): df ['ID-notice','Auteur']
-    """
-    connection, cursor = connect_db()
+
+def insert_art_oeuv( id_aut, id_oeuvre):
+    dbc= Database(USER,PASSWORD,HOST,DB_NAME)
     mySql_insert_art_oeuv = 'INSERT IGNORE INTO art_oeuv (oeuvre, artiste) VALUES(%s,%s)'
-    mySql_select_art_id = "SELECT id FROM artiste WHERE nom = %s "
+    try:
+        dbc.execute(mySql_insert_art_oeuv, [id_aut,id_oeuvre]) 
+    except Exception as e:
+        print(f"error at insert_art_oeuv({id_aut, id_oeuvre}) // ",  e)
+    finally:
+        dbc.close()
+ 
 
+def insert_many_art_oeuvs(art_oeuvs):
+    dbc= Database(USER,PASSWORD,HOST,DB_NAME)
+    mySql_insert_art_oeuv = 'INSERT IGNORE INTO art_oeuv (artiste, oeuvre ) VALUES(%s,%s)'
+    for aut, id_oeuvre in tqdm(art_oeuvs):
+        # print (aut + " / " + id_oeuvre)
+        id_aut=''
+        try:
+            id_aut = get_auteur_id_by_name(aut,dbc)
+            dbc.execute(mySql_insert_art_oeuv, [id_aut,id_oeuvre]) 
+            # dbc.commit()
 
-    for i in range(len(df)):
-        line=df.iloc[i,:].values.tolist()
-        id_oeuvre=line[0]
-        auteurs = line[1]
-
-
-        for aut in auteurs:
-            try : 
-                cursor.execute(mySql_select_art_id, [aut])  # recupere l'id artiste par le nom
-                id_aut = cursor.fetchone()[0]
-
-                try:
-                    cursor.execute(mySql_insert_art_oeuv,(id_oeuvre,id_aut))
-                except Exception as e:
-                    print( e,
-                        "error insert id: ",
-                            id_oeuvre,id_aut
-                        )
-                    continue
-
-            except Exception as e:
-                print (e, "error select id from artiste for ", aut)
-                continue
-
-        # finally:
-    connection.commit()
-    connection.close()    
+        except Exception as e:
+            print(f"error at insert_many_art_oeuvs({id_aut, id_oeuvre}) // ",  e)
+            #TODO add to log file
+            continue
+    dbc.close()
 
 
 
-def df_from_sql():
-    """create df from db
 
-    Returns:
-        df: _description_
-    """
-    db_connection_str = 'mysql+pymysql://root:toto@127.0.0.1/projet_article'
-    db_connection = create_engine(db_connection_str)
+# RECHERCHE -------------------------------------
 
-    df = pd.read_sql('SELECT * FROM articles', con=db_connection)
-    # db_connection.close
-    return df
+def research(artiste): #, ville, jours,musee_par_j=1):
+    dbc= Database(USER,PASSWORD,HOST,DB_NAME)
+    mySql_research = "SELECT m.nom, m.ville, m.geoloc, a.nom, o.nom, o.domaine, o.sujet, o.musee FROM musee m JOIN oeuvre o ON  m.id=o.musee JOIN art_oeuv ao ON o.id=ao.oeuvre JOIN artiste a ON ao.artiste = a.id WHERE a.nom LIKE '%'%s'%' and a.nom LIKE '%'%s'%'"
+    df = pd.read_sql(mySql_research, artiste.split(' '), con=dbc.connection())
+    dbc.close()
+    return df    
+    
+# from sqlalchemy import create_engine
+# import pandas as pd
+
+# db_connection_str = 'mysql+pymysql://mysql_user:mysql_password@mysql_host/mysql_db'
+# db_connection = create_engine(db_connection_str)
+
+# df = pd.read_sql('SELECT * FROM table_name', con=db_connection)
 
 
+
+
+
+
+
+
+
+
+
+
+#%%
+
+import pandas as pd
+import mysql.connector
+from sqlalchemy import create_engine
+from mysql.connector import errorcode
+import numpy as np
+from mod_jo import *
+from tqdm import tqdm
+
+from dotenv import dotenv_values
+
+DENV = dotenv_values(".env") 
+USER = DENV['USER']
+PASSWORD = DENV['PASSWORD']
+HOST = DENV['HOST']
+DB_NAME = DENV['DB_NAME']
+# mySql_research = "SELECT m.nom, m.ville, m.geoloc, a.nom, o.nom, o.domaine, o.sujet, o.musee FROM musee m JOIN oeuvre o ON  m.id=o.musee JOIN art_oeuv ao ON o.id=ao.oeuvre JOIN artiste a ON ao.artiste = a.id WHERE a.nom LIKE '%gaston%' and a.nom LIKE '%chaissac%'"
+
+
+# dbc = Database(USER,PASSWORD,HOST,DB_NAME)
+# df = pd.read_sql(mySql_research, con=dbc.connection())
+# dbc.connection().close()
+# df
+
+
+
+artiste = 'chaissac gaston' 
+dbc= Database(USER,PASSWORD,HOST,DB_NAME)
+mySql_research = "SELECT m.nom, m.ville, m.geoloc, a.nom, o.nom, o.domaine, o.sujet, o.musee FROM musee m JOIN oeuvre o ON  m.id=o.musee JOIN art_oeuv ao ON o.id=ao.oeuvre JOIN artiste a ON ao.artiste = a.id WHERE a.nom LIKE %s and a.nom LIKE %s "
+# df = pd.read_sql(mySql_research, artiste.split(' '), con=dbc.connection())
+
+df=pd.read_sql(mySql_research, con=dbc.connection(),  params = artiste.split(' '))
+
+
+dbc.connection().close()
+df
+
+# %%
+artiste.split(' ')
+# %%

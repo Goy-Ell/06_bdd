@@ -29,11 +29,12 @@ CREATE TABLE IF NOT EXISTS oeuvre(
 
 CREATE TABLE IF NOT EXISTS artiste(
   id        int primary key auto_increment,
-  nom     varchar(100),
+  nom     varchar(200) NOT NULL,
   naissance date,
   lieu_n   varchar(100),
   mort date,
-  lieu_m   varchar(100)
+  lieu_m   varchar(100),
+  UNIQUE(nom)
 ) ENGINE InnoDB;
 
 
