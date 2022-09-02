@@ -49,12 +49,12 @@ class Database:
         return self._cursor
 
     def commit(self):
-        self.connection.commit()
+        self._cnx.commit()
 
     def close(self, commit=True):
         if commit:
             self.commit()
-        self.connection.close()
+        self._cnx.close()
 
     def execute(self, sql, params=None):
         self.cursor.execute(sql, params or ())
@@ -197,7 +197,7 @@ def get_musee(id_musee):
     finally:
         dbc.close()  
         return musee if 'musee' in locals() else None
-    
+
 
 
 def insert_musee(musee):
@@ -209,6 +209,7 @@ def insert_musee(musee):
         print(f"error at insert_musee({musee[0], musee[1]}) // ",  e)
     finally:
         dbc.close()    
+
 
 def insert_many_musees(musees):
     dbc= Database(USER,PASSWORD,HOST,DB_NAME)
@@ -316,10 +317,16 @@ def insert_many_art_oeuvs(art_oeuvs):
 
 # RECHERCHE -------------------------------------
 
-def research(artiste): #, ville, jours,musee_par_j=1):
+def research_by_artiste(artiste): #, ville, jours,musee_par_j=1):
     dbc= Database(USER,PASSWORD,HOST,DB_NAME)
-    mySql_research = "SELECT m.nom, m.ville, m.geoloc, a.nom, o.nom, o.domaine, o.sujet, o.musee FROM musee m JOIN oeuvre o ON  m.id=o.musee JOIN art_oeuv ao ON o.id=ao.oeuvre JOIN artiste a ON ao.artiste = a.id WHERE a.nom LIKE '%'%s'%' and a.nom LIKE '%'%s'%'"
-    df = pd.read_sql(mySql_research, artiste.split(' '), con=dbc.connection())
+    mySql_research = f"""SELECT m.nom, m.ville, m.geoloc, a.nom, o.nom, o.domaine, o.musee
+                        FROM musee m 
+                        JOIN oeuvre o ON  o.musee = m.id
+                        JOIN art_oeuv ao ON ao.oeuvre = o.id
+                        JOIN artiste a ON a.id = ao.artiste
+                        WHERE a.nom LIKE CONCAT('%', %s,'%')"""    
+    
+    df = pd.read_sql(sql= mySql_research, con=dbc.connection(), params=artiste)
     dbc.close()
     return df    
     

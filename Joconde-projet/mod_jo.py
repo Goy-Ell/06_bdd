@@ -6,6 +6,7 @@ import numpy as np
 from logging import exception
 from pandas import isna
 from mod_dao import *
+from geopy.geocoders import Nominatim
 
 
 def analyse_df(dataframe):
@@ -291,3 +292,11 @@ def clean_list(keys , line):
 def check_db_empty() :
     return (len(get_all_auteur())<100) or (len(get_all_musee())<100) or (len(get_all_oeuvre())<100)
         
+        
+        
+# ---------------------------------------------------------------------
+
+def get_geoloc(ville):
+    geolocator = Nominatim(user_agent="nrj")
+    location = geolocator.geocode(f"{ville}, FRANCE")
+    return (location.latitude, location.longitude)
