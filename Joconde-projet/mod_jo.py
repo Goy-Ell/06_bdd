@@ -5,7 +5,8 @@ from matplotlib import pyplot as plt
 import numpy as np
 from logging import exception
 from pandas import isna
-from mod_dao2 import *
+from mod_dao import *
+from geopy.geocoders import Nominatim
 
 
 def analyse_df(dataframe):
@@ -35,7 +36,7 @@ def get_data(dir):
     data = pd.read_csv(dir, delimiter=';', low_memory=False,
                        encoding='utf-8', nrows=300000)
     data.dataframeName = dir
-
+    
     return data
 
 
@@ -182,10 +183,13 @@ def reduc_ligne(df):
     # suppression des nan Identifiant Museofile ne contiene aune info  de locallisation
     df = df.loc[df['Identifiant Museofile'].dropna().index]
     # Mettre des NAN
-    df.fillna('nan', inplace=True)
-    # df.replace('nan', np.nan, inplace=True)
-    df.replace('', 'nan', inplace=True)
-
+    df.replace('nan',np.NaN, inplace=True)
+    df.replace('', np.NaN, inplace=True)
+    #remplacer les NaN par des None pour l insert en db
+    df = df.astype(object).where(pd.notnull(df), None)
+        # df.fillna('nan', inplace=True)
+        # df.replace('nan', np.nan, inplace=True)
+    
     return df
 
 
@@ -199,20 +203,20 @@ def net_aut(aut):
     else:
         if not isinstance(aut, str):
             aut = str(aut)
-
         if ';' in aut:
             aut = aut.split(';')
+            aut = [a for a in aut if a is not None]
         else:
             aut = [aut]
 
             # tout passer en minuscule
-        aut = list(map(lambda x: x.lower(), aut))
+        aut = list(map(lambda x: x.strip().lower(), aut))
 
     return aut
 
 
 
-def extract_data(df):
+def insert_data(df):
     musee_keys = ['Identifiant Museofile','NOMOFF','REGION','DPT','Ville_','POP_COORDONNEES']
     oeuvre_keys=['ID-notice','Titre','Dénomination','Sujet','Domaine','Identifiant Museofile']
     musees=[]
@@ -226,16 +230,22 @@ def extract_data(df):
         line['Identifiant Museofile'] = line['Identifiant Museofile'].upper()
         musees.append(clean_list(musee_keys, line))
         oeuvres.append(clean_list(oeuvre_keys, line))
-
+        oeuv_id = line['ID-notice']
     
         lst_aut = net_aut( line.Auteur)
-        for aut in lst_aut:
-            auts.append (aut)
-            art_oeuvs.append( (aut, line['ID-notice']))
+        if oeuv_id:
+            for aut in lst_aut:
+                auts.append (aut)
+                art_oeuvs.append( (aut, oeuv_id))
 
-    insert_many_auts(auts)
+    print("insert auteurs :")
+    insert_many_auts(list(set(auts)))
+    print("insert musees :")
     insert_many_musees(musees)
+    print("insert oeuvres :")
     insert_many_oeuvres(oeuvres)
+    
+    print("insert art_oeuvs :")
     insert_many_art_oeuvs(art_oeuvs)
 
 
@@ -259,8 +269,13 @@ def extract_data2(df):
             insert_art_oeuv( aut_id, line['Identifiant Museofile'])
 
 
-
-
+def clean_data(df) :
+    df = clean_encodage(df)
+    df = reduc_ligne(df)
+    # df = reduc_colonne(df)
+    # df = clean_musee_spe(df)
+    df = df.reset_index(drop=True)
+    return df
 
 
 def clean_list(keys , line):
@@ -274,4 +289,14 @@ def clean_list(keys , line):
 
 
 
+def check_db_empty() :
+    return (len(get_all_auteur())<100) or (len(get_all_musee())<100) or (len(get_all_oeuvre())<100)
+        
+        
+        
+# ---------------------------------------------------------------------
 
+def get_geoloc(ville):
+    geolocator = Nominatim(user_agent="nrj")
+    location = geolocator.geocode(f"{ville}, FRANCE")
+    return (location.latitude, location.longitude)
