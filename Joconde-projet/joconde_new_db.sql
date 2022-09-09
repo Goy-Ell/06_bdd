@@ -8,7 +8,7 @@ use joconde;
 CREATE TABLE IF NOT EXISTS musee(
   id        varchar(100) primary key ,
   nom       varchar(100),
-  # pays 	    varchar(100),
+  # pays 	  varchar(100),
   region    varchar(100),
   dept      varchar(100),
   ville     varchar(100),
@@ -17,23 +17,23 @@ CREATE TABLE IF NOT EXISTS musee(
 ) ENGINE InnoDB;
 
 CREATE TABLE IF NOT EXISTS oeuvre(
-  id      varchar(100) primary key ,
-  nom     varchar(100),
-  denomination     varchar(100),
-  sujet   varchar(100),
-  domaine varchar(100),
-  musee   varchar(100),
+  id            varchar(100) primary key ,
+  nom           varchar(100),
+  denomination  varchar(100),
+  sujet         varchar(100),
+  domaine       varchar(100),
+  musee         varchar(100),
   foreign key(musee) references musee(id)
 ) ENGINE InnoDB;
 
 
 CREATE TABLE IF NOT EXISTS artiste(
   id        int primary key auto_increment,
-  nom     varchar(200) NOT NULL,
+  nom       varchar(200) NOT NULL,
   naissance date,
-  lieu_n   varchar(100),
-  mort date,
-  lieu_m   varchar(100),
+  lieu_n    varchar(100),
+  mort      date,
+  lieu_m    varchar(100),
   UNIQUE(nom)
 ) ENGINE InnoDB;
 

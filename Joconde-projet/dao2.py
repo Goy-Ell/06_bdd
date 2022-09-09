@@ -285,6 +285,12 @@ def insert_many_oeuvres(oeuvres) :
 
 
 def insert_art_oeuv( id_aut, id_oeuvre):
+    """
+
+    Args:
+        id_aut (_type_): _description_
+        id_oeuvre (_type_): _description_
+    """
     dbc= Database(USER,PASSWORD,HOST,DB_NAME)
     mySql_insert_art_oeuv = 'INSERT IGNORE INTO art_oeuv (oeuvre, artiste) VALUES(%s,%s)'
     try:

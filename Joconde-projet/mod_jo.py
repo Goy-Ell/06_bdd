@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 from logging import exception
 from pandas import isna
-from mod_dao import *
+from dao import *
 from geopy.geocoders import Nominatim
 
 
@@ -33,8 +33,11 @@ def get_data(dir):
     Args:
         dir (string): path du .csv
     """
-    data = pd.read_csv(dir, delimiter=';', low_memory=False,
-                       encoding='utf-8', nrows=300000)
+    data = pd.read_csv(dir, delimiter=';',
+                    low_memory=False,
+                    encoding='utf-8', 
+                    # nrows=300000
+                    )
     data.dataframeName = dir
     
     return data
@@ -134,25 +137,28 @@ def clean_encodage(df):
 
     if bases:
         # s'il n'y a qu'une valeur unique et qu'elle est mal encodé on clean toute la df
-        if len(bases) == 1 and 'Ã©' in bases[0]:
-            df = clean(df_cp1252, columns)
+        # if len(bases) == 1 and 'Ã©' in bases[0]:
+        #     df = clean(df, columns)
 
         # s'il y a plus d'une valeur unique  on separe le df mal encodé du propre, puis merge apres clean
-        else:
-            for base in bases:
-                if 'Ã©' in base:
-                    bad_base = base
+        # else:
+            # for base in bases:
+            #     if 'Ã©' in base:
+            #         bad_base = base
 
-            if bad_base:
-                # creation de 2 db , dont 1 mal encodé
-                df_cp1252 = df[df.BASE == bad_base]
-                df_ok = df[df.BASE != bad_base]
+            # if bad_base:
+            #     # creation de 2 db , dont 1 mal encodé
+            #     df_cp1252 = df[df.BASE == bad_base]
+            #     df_ok = df[df.BASE != bad_base]
 
-            df_cp1252 = clean(df_cp1252, columns)
+            # df_cp1252 = clean(df_cp1252, columns)
 
-            # merge des 2 df
-            df = pd.concat([df_cp1252, df_ok])
+            # # merge des 2 df
+            # df = pd.concat([df_cp1252, df_ok])
 
+        for col in (columns):
+                # print(f'Process for {col}..')
+                df[col] = df[col].apply(lambda row: convert(row))
     return df
 
 
@@ -235,18 +241,24 @@ def insert_data(df):
         lst_aut = net_aut( line.Auteur)
         if oeuv_id:
             for aut in lst_aut:
-                auts.append (aut)
-                art_oeuvs.append( (aut, oeuv_id))
+                auts.append (aut.strip())
+                art_oeuvs.append( (aut.strip(), oeuv_id))
 
-    print("insert auteurs :")
-    insert_many_auts(list(set(auts)))
-    print("insert musees :")
-    insert_many_musees(musees)
-    print("insert oeuvres :")
-    insert_many_oeuvres(oeuvres)
+    # print("insert auteurs :")
+    # insert_many_auts(list(set(auts)))
+    # print("insert musees :")
+    # insert_many_musees(musees)
+    # print("insert oeuvres :")
+    # insert_many_oeuvres(oeuvres)
     
     print("insert art_oeuvs :")
+    # import csv
+    # with open("art_oeuv.csv", "w") as f:
+        # using csv.writer method from CSV package
+        # write = csv.writer(f)
+        # write.writerows(art_oeuvs)
     insert_many_art_oeuvs(art_oeuvs)
+
 
 
 

@@ -8,6 +8,7 @@ __pycache__/
 *.csv
 *.pdf
 *.jl
+*.xlsx
 
 # Distribution / packaging
 .Python

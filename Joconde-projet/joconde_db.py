@@ -1,7 +1,7 @@
 #%%
 # from turtle import distance
 from mod_jo import *
-from mod_dao import * 
+from dao import * 
 
 
 # Creation DB
@@ -17,7 +17,7 @@ print("get_data OK")
 # Nettoyage donées
 df = clean_data(df)
 print("clean_data OK")
-
+#%%
 # Insertion données dans la db
 insert_data(df)
 print('insert_data OK')
